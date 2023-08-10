@@ -51,8 +51,7 @@ func homeassistant() error {
 		"-e", "TZ=Europe/Berlin",
 		"--network", "host",
 		"--name", "homeassistant",
-		"ghcr.io/home-assistant/home-assistant:stable"
-		); err != nil {
+		"ghcr.io/home-assistant/home-assistant:stable"); err != nil {
 		return err
 	}
 
