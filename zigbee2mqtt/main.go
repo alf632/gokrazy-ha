@@ -48,8 +48,10 @@ func zigbee2mqtt() error {
 	if err := podman("run",
 		"-td",
 		"-v", "/perm/zigbee2mqtt/data:/app/data",
+		"-v", "/dev/ttyUSB0:/dev/ttyUSB0",
 		"-e", "TZ=Europe/Berlin",
 		"--network", "host",
+		"--privileged",
 		"--name", "zigbee2mqtt",
 		"koenkk/zigbee2mqtt"); err != nil {
 		return err
