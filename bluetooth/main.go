@@ -34,8 +34,7 @@ func bluetooth() error {
 	if err := podman("build",
 		"-t", "gokrazy-bluetooth:latest",
 		"--no-cache",
-		"https://raw.githubusercontent.com/alf632/gokrazy-ha/
-main/bluetooth/Dockerfile",
+		"https://raw.githubusercontent.com/alf632/gokrazy-ha/main/bluetooth/Dockerfile",
 	); err != nil {
 		return err
 	}
