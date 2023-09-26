@@ -6,7 +6,7 @@ RUN useradd -m bluezuser \
  && passwd -d bluezuser
 
 # setup startup script
-COPY entrypoint.sh .
-COPY ./bluezuser.conf /etc/dbus-1/system.d/
+ADD https://raw.githubusercontent.com/alf632/gokrazy-ha/main/bluetooth/entrypoint.sh .
+ADD https://raw.githubusercontent.com/alf632/gokrazy-ha/main/bluetooth/bluezuser.conf /etc/dbus-1/system.d/
 CMD ./entrypoint.sh
 
