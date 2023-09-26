@@ -33,10 +33,10 @@ func bluetooth() error {
 
 	if err := podman("build",
 		"-t", "gokrazy-bluetooth:latest",
-		"$GOPATH/pkg/mod/github.com/alf632/gokrazy-ha/bluetooth*/"
+		"$GOPATH/pkg/mod/github.com/alf632/gokrazy-ha/bluetooth*/",
 	); err != nil {
-                return err
-        }
+		return err
+	}
 
 	if err := mountVar(); err != nil {
 		return err
@@ -49,7 +49,6 @@ func bluetooth() error {
 	if err := podman("rm", "bluetooth"); err != nil {
 		log.Print(err)
 	}
-
 
 	if err := podman("run",
 		"-td",
@@ -123,4 +122,3 @@ func expandPath(env []string) []string {
 	}
 	return env
 }
-

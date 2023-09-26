@@ -11,6 +11,37 @@ import (
 	"github.com/gokrazy/gokrazy"
 )
 
+type PodmanInstance struct {
+	name string
+	image string
+	tag string
+	hostNetwork bool
+	privileged bool
+	volumes []string
+
+	running bool
+}
+
+func newPodmanInstance(name, image, tag, volumesStr string, hostNetwork, privileged bool) &PodmanInstance {
+	volumes := volumesStr.Split(",")
+	return &PodmanInstance{name=name, image=image, tag=tag, hostNetwork=hostNetwork, privileged=privileged, volumes=volumes}
+}
+
+func (pi PodmanInstance) run() error {
+	startArgs = []string{"run", "-td"}
+	for volume := range pi.volumes {
+		startArgs = append(startArgs, ["-v", volume])
+	}
+	if pi.hostNetwork {
+		startArgs = append(startArgs, ["--network", "host"])
+	}
+	if pi.privileged {
+		startArgs = append(startArgs, "--privileged")
+	}
+	startArgs = append(startArgs, ["--name", pi.name, pi.image+":"+pi.tag])
+	podman(startArgs);
+}
+
 func podman(args ...string) error {
 	podman := exec.Command("/usr/local/bin/podman", args...)
 	podman.Env = expandPath(os.Environ())
@@ -24,7 +55,24 @@ func podman(args ...string) error {
 	return nil
 }
 
-func vanpi() error {
+type PodmanManager struct {
+	Instances map[string]PodmanInstance
+}
+
+func podman(args ...string) error {
+	podman := exec.Command("/usr/local/bin/podman", args...)
+	podman.Env = expandPath(os.Environ())
+	podman.Env = append(podman.Env, "TMPDIR=/tmp")
+	podman.Stdin = os.Stdin
+	podman.Stdout = os.Stdout
+	podman.Stderr = os.Stderr
+	if err := podman.Run(); err != nil {
+		return fmt.Errorf("%v: %v", podman.Args, err)
+	}
+	return nil
+}
+
+func node-red() error {
 	// Ensure we have an up-to-date clock, which in turn also means that
 	// networking is up. This is relevant because podman takes what’s in
 	// /etc/resolv.conf (nothing at boot) and holds on to it, meaning your
@@ -32,8 +80,8 @@ func vanpi() error {
 	gokrazy.WaitForClock()
 
 	if err := podman("build",
-		"-t", "gokrazy-vanpi:latest",
-		"$GOPATH/pkg/mod/github.com/alf632/gokrazy-ha/vanpi*/",
+		"-t", "gokrazy-node-red:latest",
+		"$GOPATH/pkg/mod/github.com/alf632/gokrazy-ha/node-red*/"
 	); err != nil {
                 return err
         }
@@ -42,23 +90,23 @@ func vanpi() error {
 		return err
 	}
 
-	if err := podman("kill", "vanpi"); err != nil {
+	if err := podman("kill", "node-red"); err != nil {
 		log.Print(err)
 	}
 
-	if err := podman("rm", "vanpi"); err != nil {
+	if err := podman("rm", "node-red"); err != nil {
 		log.Print(err)
 	}
 
 
 	if err := podman("run",
 		"-td",
-		"-v", "/perm/vanpi:/config",
+		"-v", "/perm/node-red:/config",
 		"-v", "/etc/localtime:/etc/localtime:ro",
 		"--network", "host",
 		"--privileged",
-		"--name", "vanpi",
-		"gokrazy-vanpi:latest"); err != nil {
+		"--name", "node-red",
+		"gokrazy-node-red:latest"); err != nil {
 		return err
 	}
 
@@ -66,7 +114,7 @@ func vanpi() error {
 }
 
 func main() {
-	if err := vanpi(); err != nil {
+	if err := node-red(); err != nil {
 		log.Fatal(err)
 	}
 }
