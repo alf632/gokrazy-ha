@@ -8,115 +8,97 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/bitfield/script"
 	"github.com/gokrazy/gokrazy"
 )
 
 type PodmanInstance struct {
-	name string
-	image string
-	tag string
+	name        string
+	image       string
+	tag         string
 	hostNetwork bool
-	privileged bool
-	volumes []string
+	privileged  bool
+	volumes     []string
 
-	running bool
+	buildContext string
 }
 
-func newPodmanInstance(name, image, tag, volumesStr string, hostNetwork, privileged bool) &PodmanInstance {
-	volumes := volumesStr.Split(",")
-	return &PodmanInstance{name=name, image=image, tag=tag, hostNetwork=hostNetwork, privileged=privileged, volumes=volumes}
+func newPodmanInstance(name, image, tag, volumesStr string, hostNetwork, privileged bool) *PodmanInstance {
+	volumes := strings.Split(volumesStr, ",")
+	return &PodmanInstance{name: name, image: image, tag: tag, hostNetwork: hostNetwork, privileged: privileged, volumes: volumes}
+}
+
+func (pi PodmanInstance) checkImageExists() bool {
+	lines, err := script.Exec("/usr/local/bin/podman images").Match(pi.image).CountLines()
+	if err != nil {
+		log.Print(err)
+		return false
+	}
+	return lines > 0
+}
+
+func (pi PodmanInstance) build() error {
+	if err := podman("build",
+		"-t", pi.image+":"+pi.tag,
+		pi.buildContext); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (pi PodmanInstance) run() error {
-	startArgs = []string{"run", "-td"}
-	for volume := range pi.volumes {
-		startArgs = append(startArgs, ["-v", volume])
-	}
-	if pi.hostNetwork {
-		startArgs = append(startArgs, ["--network", "host"])
-	}
-	if pi.privileged {
-		startArgs = append(startArgs, "--privileged")
-	}
-	startArgs = append(startArgs, ["--name", pi.name, pi.image+":"+pi.tag])
-	podman(startArgs);
-}
-
-func podman(args ...string) error {
-	podman := exec.Command("/usr/local/bin/podman", args...)
-	podman.Env = expandPath(os.Environ())
-	podman.Env = append(podman.Env, "TMPDIR=/tmp")
-	podman.Stdin = os.Stdin
-	podman.Stdout = os.Stdout
-	podman.Stderr = os.Stderr
-	if err := podman.Run(); err != nil {
-		return fmt.Errorf("%v: %v", podman.Args, err)
-	}
-	return nil
-}
-
-type PodmanManager struct {
-	Instances map[string]PodmanInstance
-}
-
-func podman(args ...string) error {
-	podman := exec.Command("/usr/local/bin/podman", args...)
-	podman.Env = expandPath(os.Environ())
-	podman.Env = append(podman.Env, "TMPDIR=/tmp")
-	podman.Stdin = os.Stdin
-	podman.Stdout = os.Stdout
-	podman.Stderr = os.Stderr
-	if err := podman.Run(); err != nil {
-		return fmt.Errorf("%v: %v", podman.Args, err)
-	}
-	return nil
-}
-
-func node-red() error {
-	// Ensure we have an up-to-date clock, which in turn also means that
-	// networking is up. This is relevant because podman takes what’s in
-	// /etc/resolv.conf (nothing at boot) and holds on to it, meaning your
-	// container will never have working networking if it starts too early.
 	gokrazy.WaitForClock()
 
-	if err := podman("build",
-		"-t", "gokrazy-node-red:latest",
-		"$GOPATH/pkg/mod/github.com/alf632/gokrazy-ha/node-red*/"
-	); err != nil {
-                return err
-        }
+	if !pi.checkImageExists() {
+		pi.build()
+	}
 
 	if err := mountVar(); err != nil {
 		return err
 	}
 
-	if err := podman("kill", "node-red"); err != nil {
+	if err := podman("kill", pi.name); err != nil {
 		log.Print(err)
 	}
 
-	if err := podman("rm", "node-red"); err != nil {
+	if err := podman("rm", pi.name); err != nil {
 		log.Print(err)
 	}
 
+	startArgs := []string{"run", "-td"}
+	for _, volume := range pi.volumes {
+		startArgs = append(startArgs, "-v", volume)
+	}
+	if pi.hostNetwork {
+		startArgs = append(startArgs, "--network", "host")
+	}
+	if pi.privileged {
+		startArgs = append(startArgs, "--privileged")
+	}
+	startArgs = append(startArgs, "--name", pi.name, pi.image+":"+pi.tag)
 
-	if err := podman("run",
-		"-td",
-		"-v", "/perm/node-red:/config",
-		"-v", "/etc/localtime:/etc/localtime:ro",
-		"--network", "host",
-		"--privileged",
-		"--name", "node-red",
-		"gokrazy-node-red:latest"); err != nil {
+	if err := podman(startArgs...); err != nil {
 		return err
 	}
 
+	if err := podman("logs", "-f", pi.name); err != nil {
+		return err
+	}
 	return nil
 }
 
-func main() {
-	if err := node-red(); err != nil {
-		log.Fatal(err)
+// podman wraps the podman binary and redirects STDIO
+func podman(args ...string) error {
+	podman := exec.Command("/usr/local/bin/podman", args...)
+	podman.Env = expandPath(os.Environ())
+	podman.Env = append(podman.Env, "TMPDIR=/tmp")
+	podman.Stdin = os.Stdin
+	podman.Stdout = os.Stdout
+	podman.Stderr = os.Stderr
+	if err := podman.Run(); err != nil {
+		return fmt.Errorf("%v: %v", podman.Args, err)
 	}
+	return nil
 }
 
 // mountVar bind-mounts /perm/container-storage to /var if needed.
@@ -171,4 +153,3 @@ func expandPath(env []string) []string {
 	}
 	return env
 }
-
