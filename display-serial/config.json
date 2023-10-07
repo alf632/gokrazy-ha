@@ -1,0 +1,9 @@
+{
+    "logging": {
+        "critical": true,
+        "debug": true,
+        "error": true,
+        "warn": true,
+        "mqtt": false
+    }
+}
