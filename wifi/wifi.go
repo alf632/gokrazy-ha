@@ -216,6 +216,9 @@ func logic() error {
 		}
 	}
 
+	fmt.Println("modules loaded")
+	os.Exit(0)
+
 	cl, err := wifi.New()
 	if err != nil {
 		return err
