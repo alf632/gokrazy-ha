@@ -1,35 +1,42 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	ExternalDevice "github.com/W-Floyd/ha-mqtt-iot/devices/externaldevice"
+	"github.com/alf632/gokrazy-ha/mqttComponent"
 )
 
-var nextionElements map[string]NextionElement
+type Config struct {
+	MQTT       mqttComponent.MQTTConfig
+	SerialPort *string
+}
 
 func main() {
-
-	nextionElements = map[string]NextionElement{}
-
-	newButton := newNextionButton("test button", "b0")
-	nextionElements["b0"] = newButton
-
-	newSwitch := newNextionSwitch("test switch", "s0")
-	nextionElements["s0"] = newSwitch
-
-	mqttDevices := []ExternalDevice.Device{}
-	for _, element := range nextionElements {
-		mqttDevices = append(mqttDevices, element.GetMqttDevice())
+	configFile := flag.String("config", "/perm/nextion/config.json", "path to config file")
+	secretsFile := flag.String("secrets", "/perm/nextion/secrets.json", "path to secrets file")
+	serialPort := flag.String("port", "/dev/ttyS0", "path to tty interface")
+	flag.Parse()
+	config := Config{
+		MQTT: mqttComponent.MQTTConfig{
+			ConfigFile:  configFile,
+			SecretsFile: secretsFile,
+		},
+		SerialPort: serialPort,
 	}
 
-	mqttc := NewMqttController(mqttDevices)
-	defer mqttc.Stop()
-	serialc := NewSerialController(nextionElements)
-	defer serialc.stop()
+	/*
+		if _, err := os.Stat("/perm/nextion/"); os.IsNotExist(err) {
+			if err := gorecurcopy.CopyDirectory("/opt/nextion/", "/perm/nextion/"); err != nil {
+				log.Fatal(err)
+			}
+		}*/
+	nc := NewNextionController(NewSerialController(config), mqttComponent.NewMqttController(config.MQTT))
+	defer nc.mc.Stop()
+	defer nc.sc.stop()
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
