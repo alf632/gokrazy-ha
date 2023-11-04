@@ -1,16 +1,32 @@
 package main
 
 import (
+	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
-	ExternalDevice "github.com/W-Floyd/ha-mqtt-iot/devices/externaldevice"
+	"github.com/alf632/gokrazy-ha/mqttComponent"
+	"github.com/plus3it/gorecurcopy"
 	"github.com/racerxdl/go-mcp23017"
 )
 
 func main() {
+	configFile := flag.String("config", "/perm/goMqttGpio/config.json", "path to config file")
+	secretsFile := flag.String("secrets", "/perm/goMqttGpio/secrets.json", "path to secrets file")
+	flag.Parse()
+	config := mqttComponent.MQTTConfig{
+		ConfigFile:  configFile,
+		SecretsFile: secretsFile,
+	}
+
+	if _, err := os.Stat("/perm/goMqttGpio/"); os.IsNotExist(err) {
+		if err := gorecurcopy.CopyDirectory("/opt/goMqttGpio/", "/perm/goMqttGpio/"); err != nil {
+			log.Fatal(err)
+		}
+	}
+
 	d, err := mcp23017.Open(1, 0)
 	if err != nil {
 		log.Print(err)
@@ -18,17 +34,18 @@ func main() {
 	}
 	defer d.Close()
 
+	log.Println("initializing mqtt controller")
+	mqttc := mqttComponent.NewMqttController(config)
+	defer mqttc.Stop()
+	log.Println("mqtt controller initialized")
+
 	relais, err := setupRelais(d)
 	if err != nil {
 		log.Fatal(err)
 	}
-	devices := []ExternalDevice.Device{}
 	for _, r := range relais {
-		devices = append(devices, r.GetMqttDevice())
+		mqttc.AddDevice(r.GetMqttDevice())
 	}
-
-	mqttc := NewMqttController(devices)
-	defer mqttc.Stop()
 
 	done := make(chan os.Signal, 1)
 	signal.Notify(done, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
@@ -41,6 +58,7 @@ func main() {
 }
 
 func setupRelais(d *mcp23017.Device) ([]*Relais, error) {
+	log.Println("setting up relais")
 	relais := []*Relais{}
 	for i := 0; i < 9; i++ {
 		if err := d.PinMode(uint8(i), mcp23017.OUTPUT); err != nil {

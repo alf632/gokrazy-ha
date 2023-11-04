@@ -19,23 +19,19 @@ type Relais struct {
 func NewRelay(pin uint8, pinDevice *mcp23017.Device) *Relais {
 	name := fmt.Sprintf("Relay %v", pin)
 	safeName := fmt.Sprintf("relay_%v", pin)
-	externalDevice := InternalDevice.Switch{
+	internalDevice := InternalDevice.Switch{
 		Name:     &name,
 		ObjectId: &safeName,
 		UniqueId: &safeName,
-	}.Translate()
+	}
+	externalDevice := internalDevice.Translate()
 	newRelay := &Relais{
 		pin:       pin,
 		Switch:    &externalDevice,
 		pinDevice: pinDevice,
 	}
-	topicPrefix := ExternalDevice.GetTopicPrefix(newRelay.Switch)
-	commandTopic := topicPrefix + "cmd"
-	stateTopic := topicPrefix + "state"
 	newRelay.Switch.CommandFunc = newRelay.Command
-	newRelay.Switch.CommandTopic = &commandTopic
 	newRelay.Switch.StateFunc = newRelay.getState
-	newRelay.Switch.StateTopic = &stateTopic
 
 	newRelay.Switch.Initialize()
 	return newRelay
